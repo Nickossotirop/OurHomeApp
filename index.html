@@ -512,7 +512,7 @@
                 updateSummaryHeader();
                 showToast('Το ραντεβού προστέθηκε!');
             } else {
-                alert('Σφάλμα: Βεβαιωθείτε ότι δημιουργήσατε τον πίνακα "appointments" στο Supabase.');
+                alert('Σφάλμα Supabase: ' + error.message);
             }
         }
 
