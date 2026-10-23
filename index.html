@@ -691,7 +691,7 @@
                 showToast('Το πλάνο ενημερώθηκε!');
             } else {
                 console.error(error);
-                showToast('Σφάλμα αποθήκευσης');
+                showToast('Σφάλμα αποθήκευσης'+error.message);
             }
         }
 
