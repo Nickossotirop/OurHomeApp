@@ -664,7 +664,8 @@
                 container.appendChild(card);
             });
         }
-// --- RECIPES & WEEKLY PLAN (SUPABASE) ---
+
+// --- WEEKLY PLAN & RECIPES (SUPABASE) ---
         async function fetchWeeklyPlan() {
             const { data } = await supabaseClient.from('weekly_plan').select('*');
             if (data && data.length > 0) {
@@ -682,8 +683,6 @@
             state.weeklyMeals[day][type] = val;
 
             const updatedMeal = state.weeklyMeals[day];
-            
-            // Αποθήκευση ή Ενημέρωση στο Supabase
             const { error } = await supabaseClient
                 .from('weekly_plan')
                 .upsert({ day: day, lunch: updatedMeal.lunch, dinner: updatedMeal.dinner }, { onConflict: 'day' });
@@ -698,11 +697,9 @@
 
         async function clearWeeklyPlan() {
             Object.keys(state.weeklyMeals).forEach(day => state.weeklyMeals[day] = { lunch: '', dinner: '' });
-            
             for (let day of Object.keys(state.weeklyMeals)) {
                 await supabaseClient.from('weekly_plan').upsert({ day: day, lunch: '', dinner: '' }, { onConflict: 'day' });
             }
-            
             renderWeeklyPlan();
             showToast('Το πλάνο καθαρίστηκε');
         }
@@ -713,6 +710,148 @@
             renderRecipes();
         }
 
+        function renderWeeklyPlan() {
+            const container = document.getElementById('weekly-plan-container');
+            container.innerHTML = '';
+            ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'].forEach(day => {
+                const meal = state.weeklyMeals[day] || { lunch: '', dinner: '' };
+                const dayCard = document.createElement('div');
+                dayCard.className = 'bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2';
+                dayCard.innerHTML = `
+                    <div class="font-bold text-xs text-slate-700 border-b border-slate-200 pb-1">${day}</div>
+                    <div><label class="text-[10px] uppercase font-semibold text-indigo-500 block">Μεσημέρι</label><input type="text" value="${meal.lunch}" onchange="updateMeal('${day}', 'lunch', this.value)" class="w-full text-xs bg-transparent border-b border-dashed border-slate-300 focus:outline-none py-0.5"></div>
+                    <div><label class="text-[10px] uppercase font-semibold text-rose-400 block">Βράδυ</label><input type="text" value="${meal.dinner}" onchange="updateMeal('${day}', 'dinner', this.value)" class="w-full text-xs bg-transparent border-b border-dashed border-slate-300 focus:outline-none py-0.5"></div>
+                `;
+                container.appendChild(dayCard);
+            });
+        }
+
+        function toggleRecipeForm() {
+            const form = document.getElementById('recipe-form-card');
+            form.classList.toggle('hidden');
+            if (!form.classList.contains('hidden') && document.getElementById('ingredients-form-container').children.length === 0) {
+                addIngredientRow(); addIngredientRow();
+                addExecutionStepRow();
+            }
+        }
+
+        function addIngredientRow() {
+            const container = document.getElementById('ingredients-form-container');
+            const rowId = 'ing-' + Math.random();
+            const div = document.createElement('div');
+            div.id = rowId; div.className = 'grid grid-cols-12 gap-2 items-center';
+            div.innerHTML = `
+                <div class="col-span-6"><input type="text" placeholder="Υλικό" class="ing-name-input w-full text-xs px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg"></div>
+                <div class="col-span-5"><input type="text" placeholder="Ποσότητα" class="ing-amount-input w-full text-xs px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg"></div>
+                <div class="col-span-1 text-center"><button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500"><i class="fa-solid fa-circle-minus"></i></button></div>
+            `;
+            container.appendChild(div);
+        }
+
+        function addExecutionStepRow() {
+            const container = document.getElementById('execution-steps-form-container');
+            const rowId = 'step-' + Math.random();
+            const div = document.createElement('div');
+            div.id = rowId; div.className = 'flex items-center gap-2 step-row-item';
+            div.innerHTML = `
+                <input type="text" placeholder="Περιγραφή βήματος..." class="step-text-input flex-grow text-xs px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg">
+                <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500"><i class="fa-solid fa-circle-minus"></i></button>
+            `;
+            container.appendChild(div);
+        }
+
+        async function saveRecipe() {
+            const title = document.getElementById('recipe-title').value.trim();
+            const category = document.getElementById('recipe-category').value;
+            const prepTime = document.getElementById('recipe-prep-time').value.trim();
+
+            if (!title) return;
+
+            let ingredients = [];
+            document.querySelectorAll('#ingredients-form-container .grid').forEach(r => {
+                const name = r.querySelector('.ing-name-input').value.trim();
+                const amount = r.querySelector('.ing-amount-input').value.trim();
+                if (name) ingredients.push({ name, amount: amount || 'Όσο χρειαστεί' });
+            });
+
+            let steps = [];
+            document.querySelectorAll('#execution-steps-form-container .step-row-item').forEach(r => {
+                const text = r.querySelector('.step-text-input').value.trim();
+                if (text) steps.push(text);
+            });
+
+            const { error } = await supabaseClient.from('recipes').insert([{ title, category, prepTime: prepTime || 'Δ/Α', ingredients, steps }]);
+            if (!error) {
+                document.getElementById('recipe-title').value = '';
+                document.getElementById('recipe-prep-time').value = '';
+                document.getElementById('ingredients-form-container').innerHTML = '';
+                document.getElementById('execution-steps-form-container').innerHTML = '';
+                toggleRecipeForm();
+                await fetchRecipes();
+                showToast('Η συνταγή αποθηκεύτηκε!');
+            } else {
+                alert('Σφάλμα: Βεβαιωθείτε ότι δημιουργήσατε τον πίνακα "recipes" στο Supabase.');
+            }
+        }
+
+        async function deleteRecipe(id) {
+            await supabaseClient.from('recipes').delete().eq('id', id);
+            await fetchRecipes();
+            showToast('Διαγράφηκε');
+        }
+
+        async function addIngredientsToShopping(recipeId) {
+            const recipe = state.recipes.find(r => r.id === recipeId);
+            if (!recipe || !recipe.ingredients) return;
+            for (let ing of recipe.ingredients) {
+                const name = ing.amount ? `${ing.name} (${ing.amount})` : ing.name;
+                await supabaseClient.from('shopping').insert([{ name, completed: false }]);
+            }
+            await fetchShopping();
+            updateSummaryHeader();
+            showToast('Τα υλικά προστέθηκαν στο Supermarket!');
+        }
+
+        function renderRecipes() {
+            const container = document.getElementById('recipes-container');
+            container.innerHTML = '';
+            if (state.recipes.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200"><p class="text-xs">Δεν υπάρχουν συνταγές</p></div>`;
+                return;
+            }
+
+            state.recipes.forEach(recipe => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3';
+                let ingredientsHtml = (recipe.ingredients || []).map(i => `<tr class="border-b border-slate-100 text-xs"><td class="py-1 px-2 font-medium">${i.name}</td><td class="py-1 px-2 text-slate-500">${i.amount}</td></tr>`).join('');
+                let stepsHtml = (recipe.steps || []).map((s, idx) => `<li class="flex items-start gap-2 text-xs text-slate-700"><span class="font-extrabold text-amber-700 bg-amber-100 w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px]">${idx + 1}</span><span>${s}</span></li>`).join('');
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-bowl-food"></i></div>
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-sm">${recipe.title}</h4>
+                                <span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">${recipe.category}</span>
+                            </div>
+                        </div>
+                        <button onclick="deleteRecipe('${recipe.id}')" class="text-slate-300 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
+                        <h5 class="text-xs font-bold text-slate-700 mb-1">Υλικά</h5>
+                        <table class="w-full text-left"><tbody>${ingredientsHtml}</tbody></table>
+                    </div>
+                    <div class="bg-amber-50/50 rounded-xl p-3 border border-amber-200/50">
+                        <h5 class="text-xs font-bold text-slate-700 mb-1">Εκτέλεση</h5>
+                        <ol class="space-y-1.5">${stepsHtml}</ol>
+                    </div>
+                    <button onclick="addIngredientsToShopping('${recipe.id}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5">
+                        <i class="fa-solid fa-cart-plus"></i> + Σούπερ Μάρκετ
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
         // --- SHOPPING LIST (SUPABASE) ---
         async function fetchShopping() {
             const { data } = await supabaseClient.from('shopping').select('*');
