@@ -666,29 +666,61 @@
                 return;
             }
 
+            // Ομαδοποίηση κατά Μήνα (με βάση το dueDate)
+            let grouped = {};
             filtered.forEach(bill => {
-                const card = document.createElement('div');
-                card.className = `bg-white border ${bill.paid ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'} rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3`;
-                card.innerHTML = `
-                    <div class="flex items-start gap-3">
-                        <button onclick="toggleBillPaid('${bill.id}', ${bill.paid})" class="w-10 h-10 rounded-xl ${bill.paid ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'} flex items-center justify-center shrink-0 mt-0.5">
-                            <i class="fa-solid ${bill.paid ? 'fa-check' : 'fa-receipt'}"></i>
-                        </button>
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <h4 class="font-bold text-slate-800 text-sm ${bill.paid ? 'line-through text-slate-400' : ''}">${bill.title}</h4>
-                                <span class="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-md">${bill.frequency}</span>
-                            </div>
-                            <p class="text-xs text-slate-400 mt-1">Λήξη: ${bill.dueDate}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between sm:justify-end gap-3">
-                        <span class="font-display font-extrabold text-base ${bill.paid ? 'text-slate-400 line-through' : 'text-slate-900'}">${bill.amount.toFixed(2)} €</span>
-                        <button onclick="toggleBillPaid('${bill.id}', ${bill.paid})" class="px-3 py-1.5 ${bill.paid ? 'border border-slate-200 text-slate-600' : 'bg-indigo-600 text-white'} text-xs font-semibold rounded-xl">${bill.paid ? 'Ακύρωση' : 'Πληρωμή'}</button>
-                        <button onclick="deleteBill('${bill.id}')" class="text-slate-300 hover:text-rose-500 p-1.5"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                const dateObj = new Date(bill.dueDate);
+                const monthName = dateObj.toLocaleDateString('el-GR', { month: 'long', year: 'numeric' });
+                const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                
+                if (!grouped[formattedMonth]) grouped[formattedMonth] = [];
+                grouped[formattedMonth].push(bill);
+            });
+
+            // Δημιουργία HTML ανά μήνα
+            Object.keys(grouped).sort().forEach(month => {
+                const monthSection = document.createElement('div');
+                monthSection.className = 'space-y-3';
+                
+                let monthTotal = grouped[month].reduce((acc, b) => acc + b.amount, 0);
+
+                monthSection.innerHTML = `
+                    <div class="flex items-center justify-between bg-slate-100/80 px-4 py-2 rounded-xl border border-slate-200 mt-4">
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-slate-700"><i class="fa-solid fa-calendar-days text-indigo-600 mr-1.5"></i>${month}</h4>
+                        <span class="text-xs font-semibold text-slate-500">Σύνολο: <strong class="text-slate-800">${monthTotal.toFixed(2)} €</strong></span>
                     </div>
                 `;
-                container.appendChild(card);
+
+                const listDiv = document.createElement('div');
+                listDiv.className = 'space-y-2';
+
+                grouped[month].forEach(bill => {
+                    const card = document.createElement('div');
+                    card.className = `bg-white border ${bill.paid ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'} rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3`;
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <button onclick="toggleBillPaid('${bill.id}', ${bill.paid})" class="w-10 h-10 rounded-xl ${bill.paid ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'} flex items-center justify-center shrink-0 mt-0.5">
+                                <i class="fa-solid ${bill.paid ? 'fa-check' : 'fa-receipt'}"></i>
+                            </button>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-bold text-slate-800 text-sm ${bill.paid ? 'line-through text-slate-400' : ''}">${bill.title}</h4>
+                                    <span class="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-md">${bill.frequency}</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">Λήξη: ${bill.dueDate}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between sm:justify-end gap-3">
+                            <span class="font-display font-extrabold text-base ${bill.paid ? 'text-slate-400 line-through' : 'text-slate-900'}">${bill.amount.toFixed(2)} €</span>
+                            <button onclick="toggleBillPaid('${bill.id}', ${bill.paid})" class="px-3 py-1.5 ${bill.paid ? 'border border-slate-200 text-slate-600' : 'bg-indigo-600 text-white'} text-xs font-semibold rounded-xl">${bill.paid ? 'Ακύρωση' : 'Πληρωμή'}</button>
+                            <button onclick="deleteBill('${bill.id}')" class="text-slate-300 hover:text-rose-500 p-1.5"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                        </div>
+                    `;
+                    listDiv.appendChild(card);
+                });
+
+                monthSection.appendChild(listDiv);
+                container.appendChild(monthSection);
             });
         }
 
